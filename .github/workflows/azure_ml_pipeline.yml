@@ -13,7 +13,7 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v3
  
-    # Step 2: Setup Python environment
+    # Step 2: Set up Python environment
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
@@ -22,41 +22,64 @@ jobs:
     # Step 3: Install dependencies
     - name: Install dependencies
       run: |
-        pip install azureml-sdk==1.44.0  # Ensure you have the Azure SDK
+        pip install azureml-sdk==1.44.0  # Install Azure ML SDK
  
-    # Step 4: Login to Azure
-    - name: Azure CLI Login
-      uses: azure/login@v1
-      with:
-        client-id: ${{ secrets.AZURE_CLIENT_ID }}
-        tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-        client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
-        subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
- 
-    # Step 5: Connect to Azure ML Workspace
-    - name: Connect to Azure ML Workspace
-      run: |
-        az ml workspace configure -g ${{ secrets.AZURE_RESOURCE_GROUP }} -w ${{ secrets.AZURE_WORKSPACE_NAME }} --file workspace.json
- 
-    # Step 6: Train the model using train.py
+    # Step 4: Train the model using train.py
     - name: Train the Model
       run: |
-        python train.py  # Your training script that will save the model to outputs/model.pkl
+        python train.py  # This script will save the model to outputs/model.pkl
  
-    # Step 7: Register the trained model
-    - name: Register Model in Azure ML
+    # Step 5: Authenticate and connect to Azure ML workspace using the SDK
+    - name: Azure ML Authentication
+      env:
+        AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+        AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+        AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+        AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+        AZURE_RESOURCE_GROUP: ${{ secrets.AZURE_RESOURCE_GROUP }}
+        AZURE_WORKSPACE_NAME: ${{ secrets.AZURE_WORKSPACE_NAME }}
       run: |
         from azureml.core import Workspace, Model
-        ws = Workspace.from_config(path="workspace.json")
-        model = Model.register(workspace=ws, model_path="outputs/model.pkl", model_name="iris_model")
+        from azureml.core.authentication import ServicePrincipalAuthentication
  
-    # Step 8: Deploy the model as a service
+        # Set up Service Principal authentication
+        sp_auth = ServicePrincipalAuthentication(
+            tenant_id="${{ secrets.AZURE_TENANT_ID }}",
+            service_principal_id="${{ secrets.AZURE_CLIENT_ID }}",
+            service_principal_password="${{ secrets.AZURE_CLIENT_SECRET }}"
+        )
+ 
+        # Connect to the Azure ML Workspace
+        ws = Workspace.get(
+            name="${{ secrets.AZURE_WORKSPACE_NAME }}",
+            resource_group="${{ secrets.AZURE_RESOURCE_GROUP }}",
+            subscription_id="${{ secrets.AZURE_SUBSCRIPTION_ID }}",
+            auth=sp_auth
+        )
+ 
+        print(f"Connected to Azure ML Workspace: {ws.name}")
+ 
+    # Step 6: Register the trained model
+    - name: Register Model in Azure ML
+      run: |
+        from azureml.core import Model
+ 
+        model = Model.register(
+            workspace=ws,
+            model_path="outputs/model.pkl",  # Path to the trained model
+            model_name="iris_model"  # Name of the registered model
+        )
+        print(f"Model {model.name} registered in Azure ML")
+ 
+    # Step 7: Deploy the model as a service
     - name: Deploy Model as Web Service
       run: |
         from azureml.core.webservice import AciWebservice, Webservice
         from azureml.core.model import InferenceConfig
+        from azureml.core.environment import Environment
  
         # Define the inference config (using score.py)
+        env = Environment.from_conda_specification(name="project_environment", file_path="environment.yml")
         inference_config = InferenceConfig(entry_script="score.py", environment=env)
  
         # Set up the deployment configuration
@@ -65,4 +88,5 @@ jobs:
         # Deploy the model as a service
         service = Model.deploy(ws, "iris-service", [model], inference_config, deployment_config)
         service.wait_for_deployment(show_output=True)
-        print(f"Service URI: {service.scoring_uri}")
+ 
+        print(f"Service deployed at: {service.scoring_uri}")
