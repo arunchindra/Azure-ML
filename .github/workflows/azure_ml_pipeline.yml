@@ -65,15 +65,41 @@ jobs:
  
     # Step 6: Register the trained model
     - name: Register Model in Azure ML
+      env:
+        AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+        AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+        AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+        AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+        AZURE_RESOURCE_GROUP: ${{ secrets.AZURE_RESOURCE_GROUP }}
+        AZURE_WORKSPACE_NAME: ${{ secrets.AZURE_WORKSPACE_NAME }}
       run: |
         python - <<EOF
-        from azureml.core import Model
+        from azureml.core import Workspace, Model
+        from azureml.core.authentication import ServicePrincipalAuthentication
+        import os
  
+        # Set up Service Principal authentication
+        sp_auth = ServicePrincipalAuthentication(
+            tenant_id=os.getenv('AZURE_TENANT_ID'),
+            service_principal_id=os.getenv('AZURE_CLIENT_ID'),
+            service_principal_password=os.getenv('AZURE_CLIENT_SECRET')
+        )
+ 
+        # Connect to the Azure ML Workspace
+        ws = Workspace.get(
+            name=os.getenv('AZURE_WORKSPACE_NAME'),
+            resource_group=os.getenv('AZURE_RESOURCE_GROUP'),
+            subscription_id=os.getenv('AZURE_SUBSCRIPTION_ID'),
+            auth=sp_auth
+        )
+ 
+        # Register the model
         model = Model.register(
             workspace=ws,
-            model_path="outputs/model.pkl",  # Path to the trained model
-            model_name="iris_model"  # Name of the registered model
+            model_path='outputs/model.pkl',  # Path to the trained model
+            model_name='iris_model'  # Name of the registered model
         )
+ 
         print(f"Model {model.name} registered in Azure ML")
         EOF
  
