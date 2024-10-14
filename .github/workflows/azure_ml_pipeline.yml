@@ -104,12 +104,40 @@ jobs:
         EOF
  
     # Step 7: Deploy the model as a service
-    - name: Deploy Model as Web Service
+    - name: Deploy Model in Azure ML
+      env:
+        AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+        AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+        AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+        AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+        AZURE_RESOURCE_GROUP: ${{ secrets.AZURE_RESOURCE_GROUP }}
+        AZURE_WORKSPACE_NAME: ${{ secrets.AZURE_WORKSPACE_NAME }}
       run: |
         python - <<EOF
+        from azureml.core import Workspace, Model
+        from azureml.core.authentication import ServicePrincipalAuthentication
         from azureml.core.webservice import AciWebservice, Webservice
         from azureml.core.model import InferenceConfig
         from azureml.core.environment import Environment
+        import os
+ 
+        # Set up Service Principal authentication
+        sp_auth = ServicePrincipalAuthentication(
+            tenant_id=os.getenv('AZURE_TENANT_ID'),
+            service_principal_id=os.getenv('AZURE_CLIENT_ID'),
+            service_principal_password=os.getenv('AZURE_CLIENT_SECRET')
+        )
+ 
+        # Connect to the Azure ML Workspace
+        ws = Workspace.get(
+            name=os.getenv('AZURE_WORKSPACE_NAME'),
+            resource_group=os.getenv('AZURE_RESOURCE_GROUP'),
+            subscription_id=os.getenv('AZURE_SUBSCRIPTION_ID'),
+            auth=sp_auth
+        )
+ 
+        # Import the model
+        model = Model(ws, name='iris_model')  # Adjust to your actual model name
  
         # Define the inference config (using score.py)
         env = Environment.from_conda_specification(name="project_environment", file_path="environment.yml")
