@@ -40,6 +40,7 @@ jobs:
         AZURE_RESOURCE_GROUP: ${{ secrets.AZURE_RESOURCE_GROUP }}
         AZURE_WORKSPACE_NAME: ${{ secrets.AZURE_WORKSPACE_NAME }}
       run: |
+        python -c "
         from azureml.core import Workspace, Model
         from azureml.core.authentication import ServicePrincipalAuthentication
  
@@ -59,6 +60,7 @@ jobs:
         )
  
         print(f"Connected to Azure ML Workspace: {ws.name}")
+        "
  
     # Step 6: Register the trained model
     - name: Register Model in Azure ML
