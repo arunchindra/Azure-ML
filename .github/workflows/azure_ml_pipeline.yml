@@ -66,6 +66,7 @@ jobs:
     # Step 6: Register the trained model
     - name: Register Model in Azure ML
       run: |
+        python - <<EOF
         from azureml.core import Model
  
         model = Model.register(
@@ -74,10 +75,12 @@ jobs:
             model_name="iris_model"  # Name of the registered model
         )
         print(f"Model {model.name} registered in Azure ML")
+        EOF
  
     # Step 7: Deploy the model as a service
     - name: Deploy Model as Web Service
       run: |
+        python - <<EOF
         from azureml.core.webservice import AciWebservice, Webservice
         from azureml.core.model import InferenceConfig
         from azureml.core.environment import Environment
@@ -94,3 +97,4 @@ jobs:
         service.wait_for_deployment(show_output=True)
  
         print(f"Service deployed at: {service.scoring_uri}")
+        EOF
