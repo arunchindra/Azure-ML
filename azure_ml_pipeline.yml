@@ -1,0 +1,68 @@
+name: Azure ML Pipeline
+ 
+on:
+  push:
+    branches:
+      - main  # Trigger on push to main branch
+ 
+jobs:
+  train-deploy-model:
+    runs-on: ubuntu-latest
+    steps:
+    # Step 1: Checkout the code from GitHub
+    - name: Checkout code
+      uses: actions/checkout@v3
+ 
+    # Step 2: Setup Python environment
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.8'
+ 
+    # Step 3: Install dependencies
+    - name: Install dependencies
+      run: |
+        pip install azureml-sdk==1.44.0  # Ensure you have the Azure SDK
+ 
+    # Step 4: Login to Azure
+    - name: Azure CLI Login
+      uses: azure/login@v1
+      with:
+        client-id: ${{ secrets.AZURE_CLIENT_ID }}
+        tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+        client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+        subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+ 
+    # Step 5: Connect to Azure ML Workspace
+    - name: Connect to Azure ML Workspace
+      run: |
+        az ml workspace configure -g ${{ secrets.AZURE_RESOURCE_GROUP }} -w ${{ secrets.AZURE_WORKSPACE_NAME }} --file workspace.json
+ 
+    # Step 6: Train the model using train.py
+    - name: Train the Model
+      run: |
+        python train.py  # Your training script that will save the model to outputs/model.pkl
+ 
+    # Step 7: Register the trained model
+    - name: Register Model in Azure ML
+      run: |
+        from azureml.core import Workspace, Model
+        ws = Workspace.from_config(path="workspace.json")
+        model = Model.register(workspace=ws, model_path="outputs/model.pkl", model_name="iris_model")
+ 
+    # Step 8: Deploy the model as a service
+    - name: Deploy Model as Web Service
+      run: |
+        from azureml.core.webservice import AciWebservice, Webservice
+        from azureml.core.model import InferenceConfig
+ 
+        # Define the inference config (using score.py)
+        inference_config = InferenceConfig(entry_script="score.py", environment=env)
+ 
+        # Set up the deployment configuration
+        deployment_config = AciWebservice.deploy_configuration(cpu_cores=1, memory_gb=1)
+ 
+        # Deploy the model as a service
+        service = Model.deploy(ws, "iris-service", [model], inference_config, deployment_config)
+        service.wait_for_deployment(show_output=True)
+        print(f"Service URI: {service.scoring_uri}")
