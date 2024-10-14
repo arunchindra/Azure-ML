@@ -40,27 +40,28 @@ jobs:
         AZURE_RESOURCE_GROUP: ${{ secrets.AZURE_RESOURCE_GROUP }}
         AZURE_WORKSPACE_NAME: ${{ secrets.AZURE_WORKSPACE_NAME }}
       run: |
-        python -c "
-        from azureml.core import Workspace, Model
+        python - <<EOF
+        from azureml.core import Workspace
         from azureml.core.authentication import ServicePrincipalAuthentication
+        import os
  
         # Set up Service Principal authentication
         sp_auth = ServicePrincipalAuthentication(
-            tenant_id="${{ secrets.AZURE_TENANT_ID }}",
-            service_principal_id="${{ secrets.AZURE_CLIENT_ID }}",
-            service_principal_password="${{ secrets.AZURE_CLIENT_SECRET }}"
+            tenant_id=os.getenv("AZURE_TENANT_ID"),
+            service_principal_id=os.getenv("AZURE_CLIENT_ID"),
+            service_principal_password=os.getenv("AZURE_CLIENT_SECRET")
         )
  
         # Connect to the Azure ML Workspace
         ws = Workspace.get(
-            name="${{ secrets.AZURE_WORKSPACE_NAME }}",
-            resource_group="${{ secrets.AZURE_RESOURCE_GROUP }}",
-            subscription_id="${{ secrets.AZURE_SUBSCRIPTION_ID }}",
+            name=os.getenv("AZURE_WORKSPACE_NAME"),
+            resource_group=os.getenv("AZURE_RESOURCE_GROUP"),
+            subscription_id=os.getenv("AZURE_SUBSCRIPTION_ID"),
             auth=sp_auth
         )
  
         print(f"Connected to Azure ML Workspace: {ws.name}")
-        "
+        EOF
  
     # Step 6: Register the trained model
     - name: Register Model in Azure ML
